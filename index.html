@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Piazza — Incontra persone nuove</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- ══ FIREBASE SDK v9 COMPAT ══ -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+:root {
+  --terra: #C0522A; --terra-light: #D96B3F; --ocra: #E8A84C;
+  --cielo: #2B4B6F; --cielo-light: #3D6B9A;
+  --panna: #F5EFE6; --panna-dark: #EBE0CE;
+  --marrone: #3A2215; --verde: #4A7C59;
+  --bianco: #FDFAF5; --ombra: rgba(58,34,21,0.12);
+  --success: #4A7C59; --error: #C0522A;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'DM Sans',sans-serif; background:var(--bianco); color:var(--marrone); min-height:100vh; overflow-x:hidden; }
+
+/* ── BACKGROUNDS ── */
+.hero-bg { position:fixed; inset:0; background: radial-gradient(ellipse at 80% 10%,rgba(232,168,76,.18) 0%,transparent 55%), radial-gradient(ellipse at 10% 80%,rgba(192,82,42,.12) 0%,transparent 50%), var(--bianco); z-index:0; }
+.hero-texture { position:fixed; inset:0; background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23C0522A' fill-opacity='0.025'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E"); z-index:0; pointer-events:none; }
+
+/* ── TYPOGRAPHY / UTILS ── */
+.font-serif { font-family:'Cormorant Garamond',serif; }
+.logo { font-family:'Cormorant Garamond',serif; font-size:32px; font-weight:600; color:var(--terra); letter-spacing:-.5px; }
+.logo span { color:var(--ocra); font-style:italic; }
+
+/* ── BUTTONS ── */
+.btn { border:none; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .25s; }
+.btn-primary { background:var(--terra); color:#fff; padding:10px 24px; border-radius:100px; font-size:14px; font-weight:500; letter-spacing:.2px; }
+.btn-primary:hover { background:var(--terra-light); transform:translateY(-1px); box-shadow:0 8px 24px rgba(192,82,42,.3); }
+.btn-primary:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+.btn-secondary { background:transparent; color:var(--terra); border:1.5px solid var(--terra); padding:10px 24px; border-radius:100px; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:500; cursor:pointer; transition:all .25s; }
+.btn-secondary:hover { background:var(--terra); color:#fff; }
+.btn-sm { padding:8px 18px; font-size:13px; }
+.btn-lg { padding:14px 32px; font-size:16px; }
+
+/* ── TOAST ── */
+#toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:var(--marrone); color:#fff; padding:12px 24px; border-radius:100px; font-size:14px; z-index:999; transition:transform .3s; pointer-events:none; }
+#toast.show { transform:translateX(-50%) translateY(0); }
+#toast.success { background:var(--verde); }
+#toast.error { background:var(--error); }
+
+/* ── SPINNER ── */
+.spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; vertical-align:middle; margin-right:6px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ══ LANDING ══ */
+#landing { min-height:100vh; display:flex; flex-direction:column; position:relative; }
+nav { position:relative; z-index:10; display:flex; justify-content:space-between; align-items:center; padding:24px 48px; border-bottom:1px solid rgba(192,82,42,.12); }
+.nav-links { display:flex; gap:32px; align-items:center; }
+.nav-link { font-size:14px; font-weight:500; color:var(--marrone); opacity:.6; cursor:pointer; text-decoration:none; transition:opacity .2s; }
+.nav-link:hover { opacity:1; }
+
+.hero { flex:1; display:flex; align-items:center; justify-content:center; position:relative; z-index:5; padding:80px 48px; text-align:center; flex-direction:column; }
+.hero-tag { display:inline-flex; align-items:center; gap:8px; background:rgba(192,82,42,.08); border:1px solid rgba(192,82,42,.2); color:var(--terra); font-size:12px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; padding:6px 16px; border-radius:100px; margin-bottom:32px; animation:fadeUp .6s ease both; }
+.hero h1 { font-family:'Cormorant Garamond',serif; font-size:clamp(52px,8vw,96px); font-weight:600; line-height:1.0; color:var(--marrone); letter-spacing:-2px; max-width:800px; animation:fadeUp .7s ease .1s both; }
+.hero h1 em { color:var(--terra); font-style:italic; }
+.hero p { font-size:18px; color:var(--marrone); opacity:.55; max-width:480px; line-height:1.7; margin:24px auto 40px; font-weight:300; animation:fadeUp .7s ease .2s both; }
+.hero-cta { display:flex; gap:12px; justify-content:center; animation:fadeUp .7s ease .3s both; }
+
+.features { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; padding:0 48px 80px; position:relative; z-index:5; animation:fadeUp .7s ease .4s both; }
+.feature-card { background:#fff; border:1px solid rgba(192,82,42,.1); border-radius:20px; padding:28px; transition:all .3s; }
+.feature-card:hover { transform:translateY(-4px); box-shadow:0 20px 48px var(--ombra); border-color:rgba(192,82,42,.2); }
+.feature-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; margin-bottom:16px; }
+.fi-1{background:rgba(192,82,42,.1);} .fi-2{background:rgba(232,168,76,.15);} .fi-3{background:rgba(43,75,111,.1);}
+.feature-card h3 { font-size:16px; font-weight:600; margin-bottom:8px; }
+.feature-card p { font-size:14px; color:var(--marrone); opacity:.55; line-height:1.6; }
+
+/* ══ LOADING SCREEN ══ */
+#loadingScreen { position:fixed; inset:0; background:var(--bianco); z-index:200; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; }
+#loadingScreen .logo { font-size:40px; }
+#loadingScreen p { font-size:14px; opacity:.45; }
+#loadingScreen .dot-loader { display:flex; gap:6px; }
+#loadingScreen .dot { width:8px; height:8px; background:var(--terra); border-radius:50%; animation:dotBounce .9s ease infinite; }
+#loadingScreen .dot:nth-child(2){animation-delay:.15s;} #loadingScreen .dot:nth-child(3){animation-delay:.3s;}
+@keyframes dotBounce { 0%,80%,100%{transform:scale(.6);opacity:.4;} 40%{transform:scale(1);opacity:1;} }
+
+/* ══ APP ══ */
+#app { display:none; height:100vh; flex-direction:column; position:relative; z-index:10; }
+.app-header { background:#fff; border-bottom:1px solid rgba(192,82,42,.1); padding:0 24px; height:56px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.app-header .logo { font-size:22px; }
+.user-pill { display:flex; align-items:center; gap:10px; cursor:pointer; padding:6px 12px 6px 6px; border-radius:100px; background:var(--panna); border:1px solid var(--panna-dark); transition:all .2s; }
+.user-pill:hover { background:var(--panna-dark); }
+.app-body { display:flex; flex:1; overflow:hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar { width:260px; background:#fff; border-right:1px solid rgba(192,82,42,.1); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; }
+.sidebar-section { padding:20px 16px 8px; }
+.sidebar-label { font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--marrone); opacity:.35; margin-bottom:8px; padding:0 4px; }
+.sidebar-item { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:10px; cursor:pointer; transition:all .15s; font-size:14px; }
+.sidebar-item:hover,.sidebar-item.active { background:var(--panna); }
+.sidebar-item.active { font-weight:500; color:var(--terra); }
+.sidebar-item .icon { font-size:16px; opacity:.7; }
+.sidebar-item.active .icon { opacity:1; }
+.room-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.badge { background:var(--terra); color:#fff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:100px; margin-left:auto; }
+.online-count { font-size:12px; opacity:.35; text-align:center; padding:16px; margin-top:auto; }
+.online-dot { display:inline-block; width:6px; height:6px; background:#4CAF50; border-radius:50%; margin-right:5px; animation:pulse 2s infinite; }
+
+/* ── MAIN PANEL ── */
+.main-panel { flex:1; display:flex; flex-direction:column; overflow:hidden; background:var(--bianco); }
+.view { display:none; flex:1; flex-direction:column; overflow:hidden; }
+.view.active { display:flex; }
+
+/* ── SCOPRI ── */
+.scopri-header { padding:32px 32px 20px; border-bottom:1px solid rgba(192,82,42,.08); background:#fff; }
+.scopri-header h2 { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:600; margin-bottom:4px; }
+.scopri-header p { font-size:14px; opacity:.5; }
+.search-bar { display:flex; align-items:center; gap:10px; background:var(--panna); border:1.5px solid var(--panna-dark); border-radius:100px; padding:10px 18px; margin:20px 32px; transition:border-color .2s; }
+.search-bar:focus-within { border-color:var(--terra); background:#fff; }
+.search-bar input { border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--marrone); outline:none; flex:1; }
+.search-bar input::placeholder { opacity:.4; }
+.interests-row { display:flex; gap:8px; padding:0 32px 20px; flex-wrap:wrap; }
+.interest-chip { padding:6px 14px; border-radius:100px; font-size:13px; font-weight:500; cursor:pointer; border:1.5px solid var(--panna-dark); background:#fff; color:var(--marrone); transition:all .2s; display:flex; align-items:center; gap:6px; }
+.interest-chip:hover,.interest-chip.active { border-color:var(--terra); background:rgba(192,82,42,.06); color:var(--terra); }
+.people-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; padding:0 32px 32px; overflow-y:auto; }
+.person-card { background:#fff; border:1px solid rgba(192,82,42,.1); border-radius:16px; padding:20px; text-align:center; cursor:pointer; transition:all .25s; }
+.person-card:hover { transform:translateY(-3px); box-shadow:0 12px 32px var(--ombra); border-color:rgba(192,82,42,.25); }
+.person-card h4 { font-size:15px; font-weight:600; margin-bottom:4px; }
+.person-card .location { font-size:12px; opacity:.45; margin-bottom:10px; }
+.person-tags { display:flex; gap:4px; flex-wrap:wrap; justify-content:center; margin-bottom:14px; }
+.mini-tag { font-size:11px; padding:3px 8px; border-radius:100px; background:var(--panna); color:var(--marrone); opacity:.8; }
+.empty-state { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; opacity:.35; }
+.empty-state span { font-size:48px; }
+.empty-state p { font-size:14px; }
+
+/* ── STANZE ── */
+.stanze-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; padding:32px; overflow-y:auto; }
+.room-card { background:#fff; border:1px solid rgba(192,82,42,.1); border-radius:20px; padding:24px; cursor:pointer; transition:all .25s; position:relative; overflow:hidden; }
+.room-card:hover { transform:translateY(-3px); box-shadow:0 16px 40px var(--ombra); }
+.room-emoji { font-size:32px; margin-bottom:12px; display:block; }
+.room-card h3 { font-size:16px; font-weight:600; margin-bottom:6px; }
+.room-card p { font-size:13px; opacity:.5; line-height:1.5; margin-bottom:16px; }
+.room-meta { display:flex; align-items:center; justify-content:space-between; font-size:12px; opacity:.55; }
+
+/* ── CHAT ── */
+.chat-layout { display:flex; flex:1; overflow:hidden; }
+.chat-list { width:280px; border-right:1px solid rgba(192,82,42,.1); overflow-y:auto; background:#fff; flex-shrink:0; }
+.chat-list-header { padding:20px 16px 12px; border-bottom:1px solid rgba(192,82,42,.08); font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:600; }
+.chat-item { display:flex; align-items:center; gap:12px; padding:12px 16px; cursor:pointer; transition:background .15s; border-bottom:1px solid rgba(192,82,42,.05); }
+.chat-item:hover,.chat-item.active { background:var(--panna); }
+.chat-item-info { flex:1; min-width:0; }
+.chat-item-name { font-size:14px; font-weight:500; margin-bottom:2px; }
+.chat-item-preview { font-size:12px; opacity:.45; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.chat-item-time { font-size:11px; opacity:.35; flex-shrink:0; }
+.chat-window { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.chat-header { background:#fff; border-bottom:1px solid rgba(192,82,42,.1); padding:12px 20px; display:flex; align-items:center; gap:12px; flex-shrink:0; }
+.chat-header-info h4 { font-size:15px; font-weight:600; }
+.chat-header-info p { font-size:12px; opacity:.45; }
+.messages { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:12px; }
+.msg { display:flex; gap:10px; max-width:75%; animation:msgIn .25s ease; }
+.msg.mine { align-self:flex-end; flex-direction:row-reverse; }
+.msg-bubble { padding:10px 14px; border-radius:16px; font-size:14px; line-height:1.5; }
+.msg:not(.mine) .msg-bubble { background:#fff; border:1px solid rgba(192,82,42,.1); border-radius:4px 16px 16px 16px; }
+.msg.mine .msg-bubble { background:var(--terra); color:#fff; border-radius:16px 4px 16px 16px; }
+.msg-time { font-size:11px; opacity:.35; align-self:flex-end; padding-bottom:4px; flex-shrink:0; }
+.chat-input-area { padding:16px 20px; background:#fff; border-top:1px solid rgba(192,82,42,.1); display:flex; align-items:center; gap:10px; }
+.chat-input { flex:1; background:var(--panna); border:1.5px solid var(--panna-dark); border-radius:100px; padding:10px 18px; font-family:'DM Sans',sans-serif; font-size:14px; outline:none; transition:border-color .2s; color:var(--marrone); }
+.chat-input:focus { border-color:var(--terra); background:#fff; }
+.send-btn { width:40px; height:40px; border-radius:50%; background:var(--terra); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#fff; font-size:16px; transition:all .2s; flex-shrink:0; }
+.send-btn:hover { background:var(--terra-light); transform:scale(1.05); }
+.chat-date-sep { text-align:center; font-size:11px; opacity:.35; padding:4px 0; }
+
+/* ── PROFILO ── */
+.profile-view { padding:40px; overflow-y:auto; flex:1; }
+.profile-hero { display:flex; align-items:flex-start; gap:24px; margin-bottom:32px; padding-bottom:32px; border-bottom:1px solid rgba(192,82,42,.1); }
+.profile-info h2 { font-family:'Cormorant Garamond',serif; font-size:32px; font-weight:600; margin-bottom:4px; }
+.profile-info .city { font-size:14px; opacity:.45; }
+.profile-bio { font-size:15px; opacity:.65; line-height:1.6; margin:12px 0; max-width:500px; }
+.profile-stats { display:flex; gap:24px; }
+.stat { text-align:center; }
+.stat-num { font-size:20px; font-weight:700; color:var(--terra); }
+.stat-lbl { font-size:11px; opacity:.4; }
+
+/* ── AVATAR ── */
+.avatar { border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:600; flex-shrink:0; }
+.avatar.xs { width:28px; height:28px; font-size:12px; }
+.avatar.sm { width:36px; height:36px; font-size:15px; }
+.avatar.md { width:56px; height:56px; font-size:22px; }
+.avatar.lg { width:64px; height:64px; font-size:24px; }
+
+/* ── MODALS ── */
+.modal-overlay { position:fixed; inset:0; background:rgba(58,34,21,.4); backdrop-filter:blur(4px); z-index:100; display:flex; align-items:center; justify-content:center; animation:fadeIn .2s ease; }
+.modal { background:#fff; border-radius:24px; padding:40px; width:480px; max-width:95vw; max-height:90vh; overflow-y:auto; animation:slideUp .3s ease; box-shadow:0 32px 80px rgba(58,34,21,.2); }
+.modal h2 { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:600; margin-bottom:8px; }
+.modal>.subtitle { font-size:14px; opacity:.5; margin-bottom:28px; }
+.form-group { margin-bottom:20px; }
+.form-group label { display:block; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; opacity:.5; margin-bottom:8px; }
+.form-input { width:100%; padding:12px 16px; border:1.5px solid var(--panna-dark); border-radius:12px; font-family:'DM Sans',sans-serif; font-size:14px; background:var(--bianco); color:var(--marrone); outline:none; transition:border-color .2s; }
+.form-input:focus { border-color:var(--terra); }
+.form-input.error { border-color:#e74c3c; }
+.field-error { font-size:12px; color:#e74c3c; margin-top:4px; }
+.interests-picker { display:flex; flex-wrap:wrap; gap:8px; }
+.color-options { display:flex; gap:10px; flex-wrap:wrap; }
+.color-opt { width:36px; height:36px; border-radius:50%; cursor:pointer; border:3px solid transparent; transition:all .2s; }
+.color-opt.selected { border-color:var(--marrone); transform:scale(1.1); }
+.modal-footer { display:flex; gap:12px; margin-top:28px; }
+.modal-footer .btn-primary { flex:1; padding:13px; font-size:15px; }
+.auth-switch { text-align:center; margin-top:16px; font-size:13px; opacity:.5; }
+.auth-switch a { color:var(--terra); cursor:pointer; opacity:1; }
+
+/* ── ROOM CHAT ── */
+.room-chat-header { background:#fff; border-bottom:1px solid rgba(192,82,42,.1); padding:16px 24px; display:flex; align-items:center; gap:16px; }
+.room-chat-header h3 { font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:600; }
+.room-back { cursor:pointer; font-size:14px; opacity:.5; transition:opacity .2s; }
+.room-back:hover { opacity:1; }
+.room-msg { display:flex; gap:10px; max-width:80%; animation:msgIn .2s ease; }
+.room-msg-info { display:flex; align-items:baseline; gap:6px; margin-bottom:3px; }
+.room-msg-name { font-size:12px; font-weight:600; color:var(--terra); }
+.room-msg-time { font-size:11px; opacity:.35; }
+.room-msg-bubble { padding:8px 12px; background:#fff; border:1px solid rgba(192,82,42,.1); border-radius:4px 12px 12px 12px; font-size:14px; line-height:1.5; }
+.room-msg.mine { align-self:flex-end; flex-direction:row-reverse; }
+.room-msg.mine .room-msg-bubble { background:var(--terra); color:#fff; border-radius:12px 4px 12px 12px; }
+.room-msg.mine .room-msg-name { display:none; }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes slideUp { from{opacity:0;transform:translateY(30px) scale(.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+@keyframes msgIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:rgba(192,82,42,.2);border-radius:100px;}
+@media(max-width:768px){nav{padding:16px 20px;}.hero{padding:40px 20px;}.hero h1{font-size:44px;}.features{grid-template-columns:1fr;padding:0 20px 40px;}.nav-links{display:none;}.sidebar{display:none;}.people-grid{grid-template-columns:1fr 1fr;padding:0 16px 16px;}.chat-list{width:240px;}}
+</style>
+</head>
+<body>
+
+<div class="hero-bg"></div>
+<div class="hero-texture"></div>
+<div id="toast"></div>
+
+<!-- ══ LOADING ══ -->
+<div id="loadingScreen">
+  <div class="logo">Piaz<span>za</span></div>
+  <div class="dot-loader">
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+  </div>
+  <p>Caricamento in corso...</p>
+</div>
+
+<!-- ══ LANDING ══ -->
+<div id="landing" style="display:none">
+  <nav>
+    <div class="logo">Piaz<span>za</span></div>
+    <div class="nav-links">
+      <a class="nav-link">Stanze</a>
+      <a class="nav-link">Persone</a>
+      <a class="nav-link">Come funziona</a>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-secondary" onclick="openModal('loginModal')">Accedi</button>
+      <button class="btn btn-primary" onclick="openModal('registerModal')">Inizia →</button>
+    </div>
+  </nav>
+  <section class="hero">
+    <div class="hero-tag">🇮🇹 100% italiano</div>
+    <h1>Il posto dove <em>incontrarsi</em> davvero</h1>
+    <p>Piazza è lo spazio digitale italiano dove puoi conoscere persone nuove, entrare in stanze tematiche e chattare liberamente.</p>
+    <div class="hero-cta">
+      <button class="btn btn-primary btn-lg" onclick="openModal('registerModal')">Crea il tuo profilo gratis</button>
+      <button class="btn btn-secondary btn-lg" onclick="openModal('loginModal')">Accedi →</button>
+    </div>
+  </section>
+  <div class="features">
+    <div class="feature-card"><div class="feature-icon fi-1">🏛️</div><h3>Stanze tematiche</h3><p>Entra in stanze dedicate ai tuoi interessi: musica, viaggi, sport, cultura e molto altro.</p></div>
+    <div class="feature-card"><div class="feature-icon fi-2">✨</div><h3>Connessioni autentiche</h3><p>Trova persone con i tuoi stessi interessi. Niente algoritmi nascosti, solo connessioni vere.</p></div>
+    <div class="feature-card"><div class="feature-icon fi-3">💬</div><h3>Chat privata</h3><p>Quando trovi qualcuno interessante, continua la conversazione in privato quando vuoi.</p></div>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app" style="display:none">
+  <header class="app-header">
+    <div class="logo">Piaz<span>za</span></div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <button class="btn btn-primary btn-sm" onclick="openModal('matchModal')">🎲 Conosci qualcuno</button>
+      <div class="user-pill" onclick="switchView('profilo')">
+        <div class="avatar sm" id="headerAvatar">?</div>
+        <span style="font-size:14px;font-weight:500" id="headerName">...</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="logout()">Esci</button>
+    </div>
+  </header>
+  <div class="app-body">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Menu</div>
+        <div class="sidebar-item active" onclick="switchView('scopri')" id="nav-scopri"><span class="icon">🔍</span>Scopri persone</div>
+        <div class="sidebar-item" onclick="switchView('stanze')" id="nav-stanze"><span class="icon">🏛️</span>Stanze</div>
+        <div class="sidebar-item" onclick="switchView('chat')" id="nav-chat"><span class="icon">💬</span>Messaggi<span class="badge" id="unreadBadge" style="display:none">0</span></div>
+        <div class="sidebar-item" onclick="switchView('profilo')" id="nav-profilo"><span class="icon">👤</span>Il mio profilo</div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Stanze attive</div>
+        <div class="sidebar-item" onclick="enterRoom('musica')"><span class="room-dot" style="background:#E8A84C"></span>🎵 Musica</div>
+        <div class="sidebar-item" onclick="enterRoom('viaggi')"><span class="room-dot" style="background:#4A7C59"></span>✈️ Viaggi</div>
+        <div class="sidebar-item" onclick="enterRoom('libri')"><span class="room-dot" style="background:#2B4B6F"></span>📚 Libri</div>
+        <div class="sidebar-item" onclick="enterRoom('sport')"><span class="room-dot" style="background:#C0522A"></span>⚽ Sport</div>
+      </div>
+      <div class="online-count"><span class="online-dot"></span><span id="onlineCount">...</span> online ora</div>
+    </aside>
+    <main class="main-panel">
+
+      <!-- SCOPRI -->
+      <div class="view active" id="view-scopri">
+        <div class="scopri-header"><h2>Scopri persone</h2><p>Trova qualcuno con i tuoi stessi interessi</p></div>
+        <div class="search-bar"><span style="opacity:.4">🔍</span><input type="text" placeholder="Cerca per nome, città, interessi..." id="searchInput" oninput="filterPeople(this.value)"></div>
+        <div class="interests-row" id="filterChips">
+          <div class="interest-chip active" onclick="toggleChip(this,'')">Tutti</div>
+          <div class="interest-chip" onclick="toggleChip(this,'musica')">🎵 Musica</div>
+          <div class="interest-chip" onclick="toggleChip(this,'viaggi')">✈️ Viaggi</div>
+          <div class="interest-chip" onclick="toggleChip(this,'sport')">⚽ Sport</div>
+          <div class="interest-chip" onclick="toggleChip(this,'arte')">🎨 Arte</div>
+          <div class="interest-chip" onclick="toggleChip(this,'tecnologia')">💻 Tecnologia</div>
+          <div class="interest-chip" onclick="toggleChip(this,'cucina')">🍕 Cucina</div>
+          <div class="interest-chip" onclick="toggleChip(this,'cinema')">🎬 Cinema</div>
+          <div class="interest-chip" onclick="toggleChip(this,'libri')">📚 Libri</div>
+        </div>
+        <div class="people-grid" id="peopleGrid"><div class="empty-state" style="grid-column:1/-1"><span>👥</span><p>Caricamento utenti...</p></div></div>
+      </div>
+
+      <!-- STANZE -->
+      <div class="view" id="view-stanze">
+        <div class="scopri-header"><h2>Stanze tematiche</h2><p>Entra in una conversazione con tante persone</p></div>
+        <div class="stanze-grid" id="stanzeGrid"></div>
+      </div>
+
+      <!-- CHAT -->
+      <div class="view" id="view-chat">
+        <div class="chat-layout">
+          <div class="chat-list"><div class="chat-list-header">Messaggi</div><div id="chatListItems"></div></div>
+          <div class="chat-window" id="chatWindow">
+            <div class="chat-empty" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;opacity:.35">
+              <span style="font-size:48px">💬</span><p style="font-size:14px">Seleziona una conversazione</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROFILO -->
+      <div class="view" id="view-profilo">
+        <div class="profile-view" id="profileContent">
+          <div class="empty-state"><span>👤</span><p>Caricamento profilo...</p></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ══ MODALS ══ -->
+
+<!-- REGISTER -->
+<div class="modal-overlay" id="registerModal" style="display:none" onclick="closeMO('registerModal',event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h2>Benvenuto in Piazza 🏛️</h2>
+    <p class="subtitle">Crea il tuo profilo e inizia a conoscere persone</p>
+    <div class="form-group">
+      <label>Il tuo nome *</label>
+      <input class="form-input" id="reg-name" placeholder="Come ti chiami?" type="text">
+      <div class="field-error" id="err-reg-name"></div>
+    </div>
+    <div class="form-group">
+      <label>Città</label>
+      <input class="form-input" id="reg-city" placeholder="Da dove sei?" type="text">
+    </div>
+    <div class="form-group">
+      <label>Email *</label>
+      <input class="form-input" id="reg-email" placeholder="la-tua@email.it" type="email">
+      <div class="field-error" id="err-reg-email"></div>
+    </div>
+    <div class="form-group">
+      <label>Password *</label>
+      <input class="form-input" id="reg-password" placeholder="Min. 6 caratteri" type="password">
+      <div class="field-error" id="err-reg-password"></div>
+    </div>
+    <div class="form-group">
+      <label>I tuoi interessi</label>
+      <div class="interests-picker" id="reg-interests">
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🎵 Musica</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">✈️ Viaggi</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">⚽ Sport</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🎨 Arte</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">💻 Tecnologia</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🍕 Cucina</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🎬 Cinema</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">📚 Libri</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🎮 Gaming</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🌿 Natura</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Colore avatar</label>
+      <div class="color-options" id="reg-colorPicker">
+        <div class="color-opt selected" style="background:#C0522A" data-color="#C0522A" onclick="selectColor(this,'reg')"></div>
+        <div class="color-opt" style="background:#2B4B6F" data-color="#2B4B6F" onclick="selectColor(this,'reg')"></div>
+        <div class="color-opt" style="background:#4A7C59" data-color="#4A7C59" onclick="selectColor(this,'reg')"></div>
+        <div class="color-opt" style="background:#8B4A8E" data-color="#8B4A8E" onclick="selectColor(this,'reg')"></div>
+        <div class="color-opt" style="background:#C07A2A" data-color="#C07A2A" onclick="selectColor(this,'reg')"></div>
+        <div class="color-opt" style="background:#1A6B6B" data-color="#1A6B6B" onclick="selectColor(this,'reg')"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="reg-btn" onclick="register()">Entra in Piazza 🚀</button>
+    </div>
+    <p class="auth-switch">Hai già un account? <a onclick="closeMO('registerModal');openModal('loginModal')">Accedi</a></p>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div class="modal-overlay" id="loginModal" style="display:none" onclick="closeMO('loginModal',event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h2>Bentornato! 👋</h2>
+    <p class="subtitle">Accedi al tuo account Piazza</p>
+    <div class="form-group">
+      <label>Email</label>
+      <input class="form-input" id="login-email" placeholder="la-tua@email.it" type="email">
+      <div class="field-error" id="err-login-email"></div>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input class="form-input" id="login-password" placeholder="••••••••" type="password" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="login-btn" onclick="login()">Accedi</button>
+    </div>
+    <p class="auth-switch">Non hai un account? <a onclick="closeMO('loginModal');openModal('registerModal')">Registrati gratis</a></p>
+  </div>
+</div>
+
+<!-- MATCH -->
+<div class="modal-overlay" id="matchModal" style="display:none" onclick="closeMO('matchModal',event)">
+  <div class="modal" style="text-align:center" onclick="event.stopPropagation()">
+    <div style="font-size:56px;margin-bottom:16px" id="matchEmoji">🎲</div>
+    <h2 id="matchTitle">Conosci qualcuno di nuovo!</h2>
+    <p class="subtitle" id="matchDesc">Stai per essere connesso con una persona casuale che condivide i tuoi interessi...</p>
+    <div id="matchResult" style="display:none">
+      <div class="avatar lg" style="margin:0 auto 12px" id="matchAvatar">?</div>
+      <h3 style="font-size:20px;font-weight:600" id="matchName"></h3>
+      <p style="font-size:13px;opacity:.45;margin:4px 0 12px" id="matchCity"></p>
+      <div class="person-tags" id="matchTags" style="justify-content:center;margin-bottom:20px"></div>
+    </div>
+    <div class="modal-footer" style="justify-content:center">
+      <button class="btn btn-primary" id="matchBtn" onclick="doMatch()">🎲 Connettimi!</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT PROFILE -->
+<div class="modal-overlay" id="editProfileModal" style="display:none" onclick="closeMO('editProfileModal',event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h2>Modifica profilo ✏️</h2>
+    <p class="subtitle">Aggiorna le tue informazioni</p>
+    <div class="form-group"><label>Nome</label><input class="form-input" id="edit-name" type="text"></div>
+    <div class="form-group"><label>Città</label><input class="form-input" id="edit-city" type="text"></div>
+    <div class="form-group"><label>Bio</label><textarea class="form-input" id="edit-bio" rows="3" style="resize:none;border-radius:12px"></textarea></div>
+    <div class="form-group">
+      <label>Interessi</label>
+      <div class="interests-picker" id="edit-interests">
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🎵 Musica</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">✈️ Viaggi</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">⚽ Sport</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🎨 Arte</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">💻 Tecnologia</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🍕 Cucina</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🎬 Cinema</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">📚 Libri</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🎮 Gaming</div>
+        <div class="interest-chip" onclick="this.classList.toggle('active')">🌿 Natura</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Colore avatar</label>
+      <div class="color-options" id="edit-colorPicker">
+        <div class="color-opt" style="background:#C0522A" data-color="#C0522A" onclick="selectColor(this,'edit')"></div>
+        <div class="color-opt" style="background:#2B4B6F" data-color="#2B4B6F" onclick="selectColor(this,'edit')"></div>
+        <div class="color-opt" style="background:#4A7C59" data-color="#4A7C59" onclick="selectColor(this,'edit')"></div>
+        <div class="color-opt" style="background:#8B4A8E" data-color="#8B4A8E" onclick="selectColor(this,'edit')"></div>
+        <div class="color-opt" style="background:#C07A2A" data-color="#C07A2A" onclick="selectColor(this,'edit')"></div>
+        <div class="color-opt" style="background:#1A6B6B" data-color="#1A6B6B" onclick="selectColor(this,'edit')"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeMO('editProfileModal')">Annulla</button>
+      <button class="btn btn-primary" id="edit-btn" onclick="saveProfile()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+//  🔧 CONFIGURAZIONE FIREBASE
+//  Sostituisci questi valori con quelli del tuo
+//  progetto Firebase (Console → Impostazioni progetto)
+// ════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyAHGL5Oc7OAtfsuVEgj6lbMpNboYMCy9kw",
+  authDomain:        "piazza-app-62590.firebaseapp.com",
+  projectId:         "piazza-app-62590",
+  storageBucket:     "piazza-app-62590.firebasestorage.app",
+  messagingSenderId: "1038136402393",
+  appId:             "1:1038136402393:web:e4823dd0249b98153e39c8"
+};
+
+// ── INIT FIREBASE ──
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// ── STATE ──
+const state = {
+  currentUser: null,
+  currentProfile: null,
+  allUsers: [],
+  conversations: [],
+  selectedChatId: null,
+  chatUnsub: null,
+  activeRoomId: null,
+  roomUnsub: null,
+  selectedColor: { reg:'#C0522A', edit:'#C0522A' }
+};
+
+const STANZE = [
+  { id:'musica',      name:'🎵 Musica',       desc:'Parla di artisti, concerti, playlist. Dal jazz al trap, tutto è benvenuto.', color:'#E8A84C' },
+  { id:'viaggi',      name:'✈️ Viaggi',       desc:'Consigli di viaggio, destinazioni segrete e storie avventurose.',              color:'#4A7C59' },
+  { id:'sport',       name:'⚽ Sport',        desc:'Calcio, basket, Formula 1 e tutto lo sport italiano.',                          color:'#2B4B6F' },
+  { id:'cucina',      name:'🍕 Cucina',       desc:'Ricette, ristoranti, dibattiti carbonara vs amatriciana.',                      color:'#C0522A' },
+  { id:'cinema',      name:'🎬 Cinema',       desc:'Film, serie TV, registi. Il cinema italiano e non solo.',                       color:'#8B4A8E' },
+  { id:'libri',       name:'📚 Libri',        desc:'Club del libro digitale. Consigli, recensioni, scoperte letterarie.',           color:'#1A6B6B' },
+  { id:'tecnologia',  name:'💻 Tecnologia',   desc:'AI, startup, gadget e tutto il mondo tech.',                                    color:'#3D6B9A' },
+  { id:'arte',        name:'🎨 Arte & Design',desc:'Pittura, scultura, fotografia e design. Creativi di tutta Italia!',             color:'#C07A2A' },
+];
+
+// ════ HELPERS ════
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 86400000 && now.getDate() === d.getDate())
+    return d.toLocaleTimeString('it-IT', { hour:'2-digit', minute:'2-digit' });
+  if (diff < 604800000) return d.toLocaleDateString('it-IT',{ weekday:'short' });
+  return d.toLocaleDateString('it-IT', { day:'2-digit', month:'2-digit' });
+}
+
+function avatarInitial(name) { return (name||'?')[0].toUpperCase(); }
+
+function chatId(uid1, uid2) { return [uid1, uid2].sort().join('_'); }
+
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = type ? `show ${type}` : 'show';
+  setTimeout(() => t.className = '', 3000);
+}
+
+function setLoading(btnId, loading, text) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.innerHTML = loading ? `<span class="spinner"></span>${text}` : text;
+}
+
+function clearErrors(...ids) { ids.forEach(id => { const el = document.getElementById(id); if(el){el.textContent=''; const inp = document.getElementById(id.replace('err-','')); if(inp) inp.classList.remove('error');} }); }
+
+function fieldError(errId, inputId, msg) {
+  const e = document.getElementById(errId); if(e) e.textContent = msg;
+  const i = document.getElementById(inputId); if(i) i.classList.add('error');
+}
+
+// ════ AUTH ════
+auth.onAuthStateChanged(async user => {
+  document.getElementById('loadingScreen').style.display = 'none';
+  if (user) {
+    state.currentUser = user;
+    await loadCurrentProfile();
+    document.getElementById('landing').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    initApp();
+  } else {
+    state.currentUser = null;
+    state.currentProfile = null;
+    document.getElementById('landing').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    if (state.chatUnsub) state.chatUnsub();
+    if (state.roomUnsub) state.roomUnsub();
+  }
+});
+
+async function loadCurrentProfile() {
+  const doc = await db.collection('users').doc(state.currentUser.uid).get();
+  if (doc.exists) {
+    state.currentProfile = { uid: doc.id, ...doc.data() };
+    updateHeaderUI();
+  }
+}
+
+async function register() {
+  clearErrors('err-reg-name','err-reg-email','err-reg-password');
+  const name     = document.getElementById('reg-name').value.trim();
+  const city     = document.getElementById('reg-city').value.trim();
+  const email    = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const tags     = [...document.querySelectorAll('#reg-interests .interest-chip.active')].map(el => el.textContent.trim());
+  const color    = state.selectedColor.reg;
+
+  if (!name)       return fieldError('err-reg-name','reg-name','Inserisci il tuo nome');
+  if (!email)      return fieldError('err-reg-email','reg-email','Inserisci la tua email');
+  if (password.length < 6) return fieldError('err-reg-password','reg-password','Minimo 6 caratteri');
+
+  setLoading('reg-btn', true, 'Registrazione...');
+  try {
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    await db.collection('users').doc(cred.user.uid).set({
+      name, city, email,
+      bio: 'Ciao a tutti! Sono appena arrivato su Piazza 🏛️',
+      tags, color,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      uid: cred.user.uid
+    });
+    closeMO('registerModal');
+    showToast('Benvenuto in Piazza! 🎉', 'success');
+  } catch(e) {
+    const msg = firebaseErrorMsg(e.code);
+    fieldError('err-reg-email','reg-email', msg);
+  } finally {
+    setLoading('reg-btn', false, 'Entra in Piazza 🚀');
+  }
+}
+
+async function login() {
+  clearErrors('err-login-email');
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!email || !password) return fieldError('err-login-email','login-email','Inserisci email e password');
+
+  setLoading('login-btn', true, 'Accesso...');
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    closeMO('loginModal');
+    showToast('Bentornato! 👋', 'success');
+  } catch(e) {
+    fieldError('err-login-email','login-email', firebaseErrorMsg(e.code));
+  } finally {
+    setLoading('login-btn', false, 'Accedi');
+  }
+}
+
+async function logout() {
+  if (!confirm('Vuoi uscire da Piazza?')) return;
+  await auth.signOut();
+  showToast('A presto! 👋');
+}
+
+function firebaseErrorMsg(code) {
+  const msgs = {
+    'auth/email-already-in-use': 'Email già registrata',
+    'auth/invalid-email': 'Email non valida',
+    'auth/user-not-found': 'Nessun account con questa email',
+    'auth/wrong-password': 'Password errata',
+    'auth/too-many-requests': 'Troppi tentativi. Riprova tra poco',
+    'auth/weak-password': 'Password troppo debole (min. 6 caratteri)',
+  };
+  return msgs[code] || 'Qualcosa è andato storto. Riprova.';
+}
+
+// ════ APP INIT ════
+function initApp() {
+  updateHeaderUI();
+  loadAllUsers();
+  renderStanze();
+  loadConversations();
+  updateOnlineCount();
+  setInterval(updateOnlineCount, 30000);
+}
+
+// ════ USERS ════
+async function loadAllUsers() {
+  const snap = await db.collection('users').orderBy('createdAt','desc').limit(50).get();
+  state.allUsers = snap.docs
+    .map(d => ({ uid: d.id, ...d.data() }))
+    .filter(u => u.uid !== state.currentUser?.uid);
+  renderPeople(state.allUsers);
+}
+
+function renderPeople(users) {
+  const grid = document.getElementById('peopleGrid');
+  if (!users.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><span>👥</span><p>Nessun utente trovato</p></div>`;
+    return;
+  }
+  grid.innerHTML = users.map(u => `
+    <div class="person-card" onclick="startChat('${u.uid}')">
+      <div class="avatar md" style="background:${u.color||'#C0522A'};margin:0 auto 12px">${avatarInitial(u.name)}</div>
+      <h4>${u.name||'Utente'}</h4>
+      <div class="location">📍 ${u.city||'Italia'}</div>
+      <div class="person-tags">${(u.tags||[]).slice(0,3).map(t=>`<span class="mini-tag">${t}</span>`).join('')}</div>
+      <button class="btn btn-primary" style="width:100%;padding:8px;font-size:13px" onclick="event.stopPropagation();startChat('${u.uid}')">💬 Scrivi</button>
+    </div>`).join('');
+}
+
+function filterPeople(q) {
+  const query = q.toLowerCase();
+  const filtered = state.allUsers.filter(u =>
+    (u.name||'').toLowerCase().includes(query) ||
+    (u.city||'').toLowerCase().includes(query) ||
+    (u.tags||[]).some(t => t.toLowerCase().includes(query))
+  );
+  renderPeople(filtered);
+}
+
+let activeFilter = '';
+function toggleChip(el, cat) {
+  document.querySelectorAll('#filterChips .interest-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  activeFilter = cat;
+  document.getElementById('searchInput').value = '';
+  if (!cat) { renderPeople(state.allUsers); return; }
+  renderPeople(state.allUsers.filter(u => (u.tags||[]).some(t => t.toLowerCase().includes(cat))));
+}
+
+// ════ STANZE ════
+function renderStanze() {
+  document.getElementById('stanzeGrid').innerHTML = STANZE.map(s => `
+    <div class="room-card" onclick="enterRoom('${s.id}')">
+      <div style="position:absolute;top:0;left:0;right:0;height:4px;background:${s.color};border-radius:20px 20px 0 0"></div>
+      <span class="room-emoji">${s.name.split(' ')[0]}</span>
+      <h3>${s.name.split(' ').slice(1).join(' ')}</h3>
+      <p>${s.desc}</p>
+      <div class="room-meta">
+        <span><span class="online-dot"></span>Stanza live</span>
+        <span style="background:${s.color};color:#fff;padding:4px 12px;border-radius:100px;font-size:11px;font-weight:600">Entra →</span>
+      </div>
+    </div>`).join('');
+}
+
+function enterRoom(id) {
+  state.activeRoomId = id;
+  const room = STANZE.find(s => s.id === id);
+  if (!room) return;
+  switchView('room');
+  renderRoomChat(room);
+}
+
+function renderRoomChat(room) {
+  const panel = document.querySelector('.main-panel');
+  let roomView = document.getElementById('view-room');
+  if (!roomView) {
+    roomView = document.createElement('div');
+    roomView.className = 'view';
+    roomView.id = 'view-room';
+    panel.appendChild(roomView);
+  }
+  roomView.innerHTML = `
+    <div class="room-chat-header">
+      <span class="room-back" onclick="switchView('stanze')">← Stanze</span>
+      <span style="font-size:24px">${room.name.split(' ')[0]}</span>
+      <h3>${room.name.split(' ').slice(1).join(' ')}</h3>
+      <span style="margin-left:auto;font-size:12px;opacity:.4;"><span class="online-dot"></span>Live</span>
+    </div>
+    <div class="messages" id="roomMsgs"></div>
+    <div class="chat-input-area">
+      <input class="chat-input" id="roomInput" placeholder="Scrivi nella stanza..." onkeydown="if(event.key==='Enter')sendRoomMsg('${room.id}')">
+      <button class="send-btn" onclick="sendRoomMsg('${room.id}')">➤</button>
+    </div>`;
+
+  if (state.roomUnsub) state.roomUnsub();
+  state.roomUnsub = db.collection('rooms').doc(room.id).collection('messages')
+    .orderBy('ts').limitToLast(80)
+    .onSnapshot(snap => {
+      const container = document.getElementById('roomMsgs');
+      if (!container) return;
+      snap.docChanges().forEach(change => {
+        if (change.type !== 'added') return;
+        const m = change.doc.data();
+        const mine = m.uid === state.currentUser?.uid;
+        const div = document.createElement('div');
+        div.className = `room-msg ${mine ? 'mine' : ''}`;
+        div.innerHTML = `
+          ${!mine ? `<div class="avatar xs" style="background:${m.color||'#C0522A'}">${avatarInitial(m.senderName)}</div>` : ''}
+          <div>
+            <div class="room-msg-info"><span class="room-msg-name">${m.senderName||'?'}</span><span class="room-msg-time">${fmtTime(m.ts)}</span></div>
+            <div class="room-msg-bubble">${escHtml(m.text)}</div>
+          </div>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+      });
+    });
+}
+
+async function sendRoomMsg(roomId) {
+  const input = document.getElementById('roomInput');
+  const text = input.value.trim();
+  if (!text || !state.currentUser) return;
+  input.value = '';
+  await db.collection('rooms').doc(roomId).collection('messages').add({
+    text, uid: state.currentUser.uid,
+    senderName: state.currentProfile?.name || 'Utente',
+    color: state.currentProfile?.color || '#C0522A',
+    ts: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+// ════ PRIVATE CHAT ════
+async function loadConversations() {
+  const snap = await db.collection('chats')
+    .where('participants','array-contains', state.currentUser.uid)
+    .orderBy('lastTs','desc').limit(30).get();
+  state.conversations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderChatList();
+}
+
+function renderChatList() {
+  const list = document.getElementById('chatListItems');
+  if (!state.conversations.length) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;font-size:13px;opacity:.4">Nessuna conversazione ancora.<br>Scrivi a qualcuno dalla sezione <b>Scopri!</b></div>`;
+    return;
+  }
+  list.innerHTML = state.conversations.map(c => {
+    const otherId = c.participants.find(p => p !== state.currentUser.uid);
+    const otherData = c.participantData?.[otherId] || {};
+    const isActive = state.selectedChatId === c.id;
+    return `<div class="chat-item ${isActive?'active':''}" onclick="openChat('${c.id}','${otherId}')">
+      <div class="avatar sm" style="background:${otherData.color||'#C0522A'}">${avatarInitial(otherData.name)}</div>
+      <div class="chat-item-info">
+        <div class="chat-item-name">${otherData.name||'Utente'}</div>
+        <div class="chat-item-preview">${c.lastMsg||''}</div>
+      </div>
+      <div class="chat-item-time">${fmtTime(c.lastTs)}</div>
+    </div>`;
+  }).join('');
+}
+
+function openChat(cid, otherId) {
+  state.selectedChatId = cid;
+  renderChatList();
+  const conv = state.conversations.find(c => c.id === cid);
+  const other = conv?.participantData?.[otherId] || {};
+
+  const win = document.getElementById('chatWindow');
+  win.innerHTML = `
+    <div class="chat-header">
+      <div class="avatar sm" style="background:${other.color||'#C0522A'}">${avatarInitial(other.name)}</div>
+      <div class="chat-header-info"><h4>${other.name||'Utente'}</h4><p>📍 ${other.city||'Italia'}</p></div>
+    </div>
+    <div class="messages" id="msgContainer"></div>
+    <div class="chat-input-area">
+      <input class="chat-input" id="chatInput" placeholder="Scrivi un messaggio..." onkeydown="if(event.key==='Enter')sendMsg('${cid}')">
+      <button class="send-btn" onclick="sendMsg('${cid}')">➤</button>
+    </div>`;
+
+  if (state.chatUnsub) state.chatUnsub();
+  state.chatUnsub = db.collection('chats').doc(cid).collection('messages')
+    .orderBy('ts').limitToLast(100)
+    .onSnapshot(snap => {
+      const container = document.getElementById('msgContainer');
+      if (!container) return;
+      snap.docChanges().forEach(change => {
+        if (change.type !== 'added') return;
+        const m = change.doc.data();
+        const mine = m.senderId === state.currentUser.uid;
+        const div = document.createElement('div');
+        div.className = `msg ${mine?'mine':''}`;
+        div.innerHTML = `<div class="msg-bubble">${escHtml(m.text)}</div><div class="msg-time">${fmtTime(m.ts)}</div>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+      });
+    });
+}
+
+async function sendMsg(cid) {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text || !state.currentUser) return;
+  input.value = '';
+  const batch = db.batch();
+  const msgRef = db.collection('chats').doc(cid).collection('messages').doc();
+  batch.set(msgRef, {
+    text, senderId: state.currentUser.uid,
+    ts: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  batch.update(db.collection('chats').doc(cid), {
+    lastMsg: text, lastTs: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  await batch.commit();
+}
+
+async function startChat(otherUid) {
+  if (!state.currentUser) return;
+  if (otherUid === state.currentUser.uid) return showToast('Non puoi scriverti da solo! 😄');
+
+  const cid = chatId(state.currentUser.uid, otherUid);
+  const docRef = db.collection('chats').doc(cid);
+  const doc = await docRef.get();
+
+  if (!doc.exists) {
+    const otherProfile = state.allUsers.find(u => u.uid === otherUid);
+    const myProfile = state.currentProfile;
+    await docRef.set({
+      participants: [state.currentUser.uid, otherUid],
+      participantData: {
+        [state.currentUser.uid]: { name: myProfile?.name, city: myProfile?.city, color: myProfile?.color },
+        [otherUid]: { name: otherProfile?.name, city: otherProfile?.city, color: otherProfile?.color }
+      },
+      lastMsg: '',
+      lastTs: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+
+  // reload conversations
+  await loadConversations();
+  switchView('chat');
+  setTimeout(() => openChat(cid, otherUid), 100);
+}
+
+// ════ PROFILE ════
+function renderProfileView() {
+  const p = state.currentProfile;
+  if (!p) return;
+  document.getElementById('profileContent').innerHTML = `
+    <div class="profile-hero">
+      <div class="avatar lg" style="background:${p.color||'#C0522A'}">${avatarInitial(p.name)}</div>
+      <div class="profile-info">
+        <h2>${p.name||'Utente'}</h2>
+        <div class="city">📍 ${p.city||'Italia'}</div>
+        <p class="profile-bio">${p.bio||'Ciao! Sono su Piazza.'}</p>
+        <div class="person-tags" style="justify-content:flex-start">
+          ${(p.tags||[]).map(t=>`<span class="mini-tag">${t}</span>`).join('')}
+        </div>
+      </div>
+      <div style="margin-left:auto">
+        <button class="btn btn-secondary btn-sm" onclick="openEditProfile()">✏️ Modifica</button>
+      </div>
+    </div>
+    <div class="profile-stats">
+      <div class="stat"><div class="stat-num">${state.conversations.length}</div><div class="stat-lbl">Conversazioni</div></div>
+      <div class="stat"><div class="stat-num">${(p.tags||[]).length}</div><div class="stat-lbl">Interessi</div></div>
+    </div>
+    <div style="margin-top:32px;padding-top:32px;border-top:1px solid rgba(192,82,42,.1)">
+      <div class="sidebar-label" style="margin-bottom:12px">Account</div>
+      <p style="font-size:14px;opacity:.5">📧 ${p.email||state.currentUser?.email}</p>
+      <p style="font-size:12px;opacity:.3;margin-top:6px">Membro dal ${p.createdAt?.toDate().toLocaleDateString('it-IT',{day:'2-digit',month:'long',year:'numeric'})||'recente'}</p>
+    </div>`;
+}
+
+function openEditProfile() {
+  const p = state.currentProfile;
+  document.getElementById('edit-name').value = p?.name || '';
+  document.getElementById('edit-city').value = p?.city || '';
+  document.getElementById('edit-bio').value  = p?.bio  || '';
+  // pre-select interests
+  document.querySelectorAll('#edit-interests .interest-chip').forEach(chip => {
+    chip.classList.toggle('active', (p?.tags||[]).some(t => t === chip.textContent.trim()));
+  });
+  // pre-select color
+  state.selectedColor.edit = p?.color || '#C0522A';
+  document.querySelectorAll('#edit-colorPicker .color-opt').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.color === state.selectedColor.edit);
+  });
+  openModal('editProfileModal');
+}
+
+async function saveProfile() {
+  const name  = document.getElementById('edit-name').value.trim();
+  const city  = document.getElementById('edit-city').value.trim();
+  const bio   = document.getElementById('edit-bio').value.trim();
+  const tags  = [...document.querySelectorAll('#edit-interests .interest-chip.active')].map(el => el.textContent.trim());
+  const color = state.selectedColor.edit;
+
+  setLoading('edit-btn', true, 'Salvataggio...');
+  try {
+    await db.collection('users').doc(state.currentUser.uid).update({ name, city, bio, tags, color });
+    state.currentProfile = { ...state.currentProfile, name, city, bio, tags, color };
+    updateHeaderUI();
+    renderProfileView();
+    closeMO('editProfileModal');
+    showToast('Profilo aggiornato! ✓', 'success');
+  } catch(e) {
+    showToast('Errore nel salvataggio', 'error');
+  } finally {
+    setLoading('edit-btn', false, 'Salva');
+  }
+}
+
+// ════ MATCH ════
+function doMatch() {
+  const btn = document.getElementById('matchBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Cercando...';
+  setTimeout(() => {
+    const pool = state.allUsers.filter(u => u.uid !== state.currentUser?.uid);
+    if (!pool.length) { showToast('Non ci sono ancora altri utenti!'); btn.disabled=false; btn.textContent='🎲 Riprova'; return; }
+    const p = pool[Math.floor(Math.random() * pool.length)];
+    document.getElementById('matchResult').style.display = 'block';
+    document.getElementById('matchEmoji').textContent = '🎉';
+    document.getElementById('matchTitle').textContent = 'Match trovato!';
+    document.getElementById('matchDesc').textContent = `Ti presento ${p.name?.split(' ')[0]}!`;
+    const av = document.getElementById('matchAvatar');
+    av.textContent = avatarInitial(p.name); av.style.background = p.color||'#C0522A';
+    document.getElementById('matchName').textContent = p.name;
+    document.getElementById('matchCity').textContent = '📍 ' + (p.city||'Italia');
+    document.getElementById('matchTags').innerHTML = (p.tags||[]).map(t=>`<span class="mini-tag">${t}</span>`).join('');
+    btn.disabled = false;
+    btn.textContent = '💬 Inizia a chattare!';
+    btn.onclick = () => { closeMO('matchModal'); startChat(p.uid); };
+  }, 1500);
+}
+
+// ════ UI HELPERS ════
+function updateHeaderUI() {
+  const p = state.currentProfile;
+  if (!p) return;
+  const av = document.getElementById('headerAvatar');
+  av.textContent = avatarInitial(p.name);
+  av.style.background = p.color || '#C0522A';
+  document.getElementById('headerName').textContent = (p.name||'').split(' ')[0];
+}
+
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const v = document.getElementById('view-' + name);
+  if (v) v.classList.add('active');
+  ['scopri','stanze','chat','profilo'].forEach((n,i) => {
+    document.getElementById('nav-'+n)?.classList.toggle('active', n===name);
+  });
+  if (name === 'profilo') renderProfileView();
+  if (name === 'chat') loadConversations();
+}
+
+function updateOnlineCount() {
+  const base = Math.floor(Math.random()*200) + 650;
+  document.getElementById('onlineCount').textContent = base.toLocaleString('it-IT');
+}
+
+function selectColor(el, ctx) {
+  document.querySelectorAll(`#${ctx}-colorPicker .color-opt`).forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  state.selectedColor[ctx] = el.dataset.color;
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openModal(id) {
+  if (id === 'matchModal') {
+    document.getElementById('matchResult').style.display = 'none';
+    document.getElementById('matchEmoji').textContent = '🎲';
+    document.getElementById('matchTitle').textContent = 'Conosci qualcuno di nuovo!';
+    document.getElementById('matchDesc').textContent = 'Stai per essere connesso con una persona casuale...';
+    const btn = document.getElementById('matchBtn');
+    btn.textContent = '🎲 Connettimi!'; btn.disabled = false; btn.onclick = doMatch;
+  }
+  document.getElementById(id).style.display = 'flex';
+}
+
+function closeMO(id, event) {
+  if (!event || event.target.id === id) document.getElementById(id).style.display = 'none';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') ['registerModal','loginModal','matchModal','editProfileModal'].forEach(id => closeMO(id));
+});
+</script>
+</body>
+</html>
